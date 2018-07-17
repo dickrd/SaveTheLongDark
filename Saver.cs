@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading;
@@ -10,8 +9,8 @@ namespace SaveTheLongDark
 {
     public class Saver
     {
-        private State CurrentState { get; set; }
-        private string OutputPath { get; set ; }
+        private State CurrentState { get; }
+        private string OutputPath { get; }
 
         public Saver(string slot)
         {
@@ -23,14 +22,14 @@ namespace SaveTheLongDark
                 var formater = new BinaryFormatter();
                 CurrentState = formater.Deserialize(stream) as State;
             }
-            catch (IOException e)
+            catch (IOException)
             {
                 CurrentState = null;
             }
             if (CurrentState == null)
                 CurrentState = new State()
                 {
-                    LastIndex = 1,
+                    LastIndex = 0,
                     LastBranch = "a",
                     Items = new SortedDictionary<int, Item>()
                 };
@@ -38,62 +37,46 @@ namespace SaveTheLongDark
         
         public string Save(string src, DateTime when)
         {
-            try
+            Thread.Sleep(3000);
+            var item = new Item()
             {
-                Thread.Sleep(3000);
-                var item = new Item()
-                {
-                    Index = CurrentState.LastIndex + 1,
-                    Branch = CurrentState.LastBranch,
-                    FilePath = string.Format(OutputPath, when.ToString("yyyyMMddHHmmss")),
-                    CreationTime = when
-                };
-                File.Copy(src, item.FilePath);
-                CurrentState.Items.Add(item.Index, item);
-                CurrentState.LastIndex = item.Index;
+                Index = CurrentState.LastIndex + 1,
+                Branch = CurrentState.LastBranch,
+                FilePath = string.Format(OutputPath, when.ToString("yyyyMMddHHmmss")),
+                CreationTime = when
+            };
+            File.Copy(src, item.FilePath);
+            CurrentState.Items.Add(item.Index, item);
+            CurrentState.LastIndex = item.Index;
                 
-                return $"\r    *  {item.CreationTime:HH:mm}  {item.Index}{item.Branch}\n";
-            }
-            catch (IOException e)
-            {
-                return $"\r{when:HHmm} cannot be saved.\n";
-            }
+            return $"\r    *  {item.CreationTime:HH:mm}  {item.Index}{item.Branch}\n";
         }
 
         public string Restore(int index, string dst)
         {
-            try
+            File.Copy(CurrentState.Items[index].FilePath, dst, true);
+            var branchLength = CurrentState.LastBranch.Length;
+            var newBranch = new StringBuilder();
+            var increased = false;
+            for (var i = branchLength - 1; i >= 0; i--)
             {
-                File.Copy(CurrentState.Items[index].FilePath, dst);
-                var branchLength = CurrentState.LastBranch.Length;
-                var newBranch = new StringBuilder();
-                var increased = false;
-                for (var i = branchLength - 1; i >= 0; i--)
+                if (CurrentState.LastBranch[i] < 'z')
                 {
-                    if (CurrentState.LastBranch[i] < 'z')
-                    {
-                        newBranch.Insert(0, CurrentState.LastBranch[i] + 1);
-                        increased = true;
-                    }
-                    else
-                    {
-                        newBranch.Insert(0, 'a');
-                    }
+                    newBranch.Insert(0, (char)(CurrentState.LastBranch[i] + 1));
+                    increased = true;
                 }
-
-                if (!increased)
+                else
                 {
                     newBranch.Insert(0, 'a');
                 }
-
-                CurrentState.LastBranch = newBranch.ToString();
             }
-            catch (IOException e)
+            if (!increased)
             {
-                return $"\r{index} restore failed.";
+                newBranch.Insert(0, 'a');
             }
-
-            return $"/r{index} restored.";
+            CurrentState.LastBranch = newBranch.ToString();
+            
+            return $"\r{index}{CurrentState.Items[index].Branch} restored.\n";
         }
 
         public string List()

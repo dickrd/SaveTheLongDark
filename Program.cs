@@ -1,14 +1,14 @@
 ﻿using System;
 using System.IO;
-using System.Threading;
 
 namespace SaveTheLongDark
 {
     internal static class Program
     {
+        private static DateTime _lastChanged = DateTime.Now;
         private static void Main(string[] args)
         {
-            var lastChanged = DateTime.Now;
+            
             var watcher = new FileSystemWatcher
             {
                 Path = args[0],
@@ -20,12 +20,19 @@ namespace SaveTheLongDark
             
             watcher.Changed += (sender, eventArgs) =>
             {
-                if (DateTime.Now - lastChanged < TimeSpan.FromSeconds(5))
+                if (DateTime.Now - _lastChanged < TimeSpan.FromSeconds(5))
                     return;
-                
-                lastChanged = DateTime.Now;
-                var message = saver.Save(eventArgs.FullPath, lastChanged);
-                Console.Write(message);
+
+                try
+                {
+                    _lastChanged = DateTime.Now;
+                    var message = saver.Save(eventArgs.FullPath, _lastChanged);
+                    Console.Write(message);
+                }
+                catch (Exception e)
+                {
+                    Console.Write("\r{0:HHmm} cannot be saved: {1}\n", _lastChanged, e.Message);
+                }
                 Console.Write("--> ");
             };
 
@@ -33,22 +40,26 @@ namespace SaveTheLongDark
             {
                 Console.Write("--> ");
                 var line = Console.ReadLine();
-                if (line == "exit")
+                if (line == null || line.Trim() == "exit")
+                {
                     return;
-                else if (line == "list")
+                }
+                else if (line.Trim() == "list")
                 {
                     Console.Write(saver.List());
                 }
-                else if (line.StartsWith("restore"))
+                else if (line.Trim().StartsWith("restore "))
                 {
                     try
                     {
-                        var index = int.Parse(line.Substring("restore".Length));
-                        saver.Restore(index, Path.Combine(args[0], args[1]));
+                        var index = int.Parse(line.Substring("restore ".Length));
+                        _lastChanged = DateTime.Now;
+                        var message = saver.Restore(index, Path.Combine(args[0], args[1]));
+                        Console.Write(message);
                     }
                     catch (Exception e)
                     {
-                        Console.Write("\rfailed to restore: {0}", e);
+                        Console.Write("\r{0} failed: {1}\n", line, e.Message);
                     }
                 }
                 else
