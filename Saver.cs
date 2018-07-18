@@ -1,16 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace SaveTheLongDark
 {
     public class Saver
     {
-        private State CurrentState { get; }
+        private State CurrentState { get; set; }
         private string OutputPath { get; }
 
         public Saver(string slot)
@@ -31,22 +33,8 @@ namespace SaveTheLongDark
                 CurrentState = null;
             }
 
-            if (CurrentState != null) 
-                return;
-            CurrentState = new State()
-            {
-                CurrentIndex = 0,
-                Items = new SortedDictionary<int, Item>()
-            };
-            CurrentState.Items.Add(0, new Item()
-            {
-                Index = 0,
-                Branch = "a",
-                FilePath = "",
-                CreationTime = DateTime.Now,
-                Children = new HashSet<int>(),
-                Note = null
-            });
+            if (CurrentState == null) 
+                BuildState();
         }
         
         public string Save(string src, DateTime when)
@@ -93,13 +81,7 @@ namespace SaveTheLongDark
             CurrentState.Items.Add(newItem.Index, newItem);
             CurrentState.CurrentIndex = newItem.Index;
             currentItem.Children.Add(newItem.Index);
-            
-            var stream = File.OpenWrite(string.Format(OutputPath, "state"));
-            var formater = new BinaryFormatter();
-            using (stream)
-            {
-                formater.Serialize(stream, CurrentState);
-            }
+            SerializeState();
 
             return $"\r    *  {newItem.CreationTime:HH:mm}  {newItem.Index}{newItem.Branch}\n";
         }
@@ -112,6 +94,7 @@ namespace SaveTheLongDark
             var item = CurrentState.Items[index];
             File.Copy(item.FilePath, dst, true);
             CurrentState.CurrentIndex = index;
+            SerializeState();
             
             return $"\r{index}{item.Branch} restored.\n";
         }
@@ -120,6 +103,8 @@ namespace SaveTheLongDark
         {
             var item = CurrentState.Items[CurrentState.CurrentIndex];
             item.Note = note;
+            SerializeState();
+            
             return $"\r    *  {item.CreationTime:HH:mm}  {item.Index}{item.Branch}\n    └─ {item.Note}\n";
         }
 
@@ -137,6 +122,57 @@ namespace SaveTheLongDark
             }
 
             return list.ToString();
+        }
+
+        public void SerializeState()
+        {
+            var stream = File.OpenWrite(string.Format(OutputPath, "state"));
+            var formater = new BinaryFormatter();
+            using (stream)
+            {
+                formater.Serialize(stream, CurrentState);
+            }
+        }
+
+        private void BuildState()
+        {
+            CurrentState = new State()
+            {
+                CurrentIndex = 0,
+                NextBranch = "b",
+                Items = new SortedDictionary<int, Item>()
+            };
+            CurrentState.Items.Add(0, new Item()
+            {
+                Index = 0,
+                Branch = "a",
+                FilePath = "",
+                CreationTime = DateTime.Now,
+                Children = new HashSet<int>(),
+                Note = null
+            });
+            
+            var pattern = new Regex(@"\d{14}");
+            foreach (var filePath in Directory.EnumerateFiles(string.Format(OutputPath, "")))
+            {
+                var match = pattern.Match(filePath);
+                if (!match.Success) 
+                    continue;
+                
+                var currentItem = CurrentState.Items[CurrentState.CurrentIndex];
+                var newItem = new Item()
+                {
+                    Index = currentItem.Index + 1,
+                    Branch = currentItem.Branch,
+                    FilePath = filePath,
+                    CreationTime = DateTime.ParseExact(match.Value, "yyyyMMddHHmmss", CultureInfo.InvariantCulture),
+                    Children = new HashSet<int>(),
+                    Note = null
+                };
+                CurrentState.Items.Add(newItem.Index, newItem);
+                CurrentState.CurrentIndex = newItem.Index;
+                currentItem.Children.Add(newItem.Index);
+            }
         }
     }
 

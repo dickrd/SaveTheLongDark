@@ -35,6 +35,7 @@ namespace SaveTheLongDark
                 }
                 Console.Write("--> ");
             };
+            Console.CancelKeyPress += (sender, eventArgs) => saver.SerializeState();
 
             while (true)
             {
@@ -42,6 +43,7 @@ namespace SaveTheLongDark
                 var line = Console.ReadLine();
                 if (line == null || line.Trim() == "exit")
                 {
+                    saver.SerializeState();
                     return;
                 }
 
