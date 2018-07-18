@@ -8,34 +8,60 @@ namespace SaveTheLongDark
         private static DateTime _lastChanged = DateTime.Now;
         private static void Main(string[] args)
         {
-            
-            var watcher = new FileSystemWatcher
+            if (args.Length != 2)
             {
-                Path = args[0],
-                EnableRaisingEvents = true,
-                NotifyFilter = NotifyFilters.LastWrite,
-                Filter = args[1]
-            };
-            var saver = new Saver(args[1]);
-            
-            watcher.Changed += (sender, eventArgs) =>
-            {
-                if (DateTime.Now - _lastChanged < TimeSpan.FromSeconds(5))
-                    return;
+                Console.Write("usage: savethelongdark <save_directory> <save_file>");
+                return;
+            }
 
-                try
+            Saver saver;
+            try
+            {
+                Console.Write("\r==> loading state...\n");
+                saver = new Saver(args[1]);
+                Console.CancelKeyPress += (sender, eventArgs) =>
                 {
-                    _lastChanged = DateTime.Now;
-                    var message = saver.Save(eventArgs.FullPath, _lastChanged);
-                    Console.Write(message);
-                }
-                catch (Exception e)
+                    try
+                    {
+                        saver.SerializeState();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.Write("\rstate not saved: {0}\n", e.Message.ToLower());
+                    }
+                };
+                var watcher = new FileSystemWatcher
                 {
-                    Console.Write("\r{0:HHmm} cannot be saved: {1}\n", _lastChanged, e.Message.ToLower());
-                }
-                Console.Write("--> ");
-            };
-            Console.CancelKeyPress += (sender, eventArgs) => saver.SerializeState();
+                    Path = args[0],
+                    EnableRaisingEvents = true,
+                    NotifyFilter = NotifyFilters.LastWrite,
+                    Filter = args[1]
+                };
+                watcher.Changed += (sender, eventArgs) =>
+                {
+                    if (DateTime.Now - _lastChanged < TimeSpan.FromSeconds(5))
+                        return;
+
+                    try
+                    {
+                        _lastChanged = DateTime.Now;
+                        var message = saver.Save(eventArgs.FullPath, _lastChanged);
+                        Console.Write(message);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.Write("\r{0:HHmm} cannot be saved: {1}\n", _lastChanged, e.Message.ToLower());
+                    }
+
+                    Console.Write("--> ");
+                };
+                Console.Write(saver.GenerateItemInfo());
+            }
+            catch (Exception e)
+            {
+                Console.Write("\rstate loading failed: {0}", e.Message.ToLower());
+                return;
+            }
 
             while (true)
             {
@@ -58,6 +84,19 @@ namespace SaveTheLongDark
                     var message = saver.Milestone(note);
                     Console.Write(message);
                 }
+                else if (line.StartsWith("keep "))
+                {
+                    try
+                    {
+                        var keep = int.Parse(line.Substring("keep ".Length));
+                        var message = saver.ClearOldSave(keep);
+                        Console.Write(message);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.Write("\r{0} failed: {1}\n", line, e.Message.ToLower());
+                    }
+                }
                 else if (line.StartsWith("restore "))
                 {
                     try
@@ -71,6 +110,13 @@ namespace SaveTheLongDark
                     {
                         Console.Write("\r{0} failed: {1}\n", line, e.Message.ToLower());
                     }
+                }
+                else if (line == "help")
+                {
+                    Console.Write("\r    list\t\tlist all saves\n" +
+                                  "    milestone <event>\tadd milestone to a save\n" +
+                                  "    keep <count>\tkeep only latest <count> saves\n" +
+                                  "    restore <id>\trestore <id> as current save\n");
                 }
                 else
                 {

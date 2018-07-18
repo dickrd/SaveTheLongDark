@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -17,7 +18,7 @@ namespace SaveTheLongDark
 
         public Saver(string slot)
         {
-            OutputPath = $"./Saves/{slot}" + "/{0}";
+            OutputPath = $"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}/Saved/{slot}" + "/{0}";
             try
             {
                 Directory.CreateDirectory(string.Format(OutputPath, ""));
@@ -35,6 +36,20 @@ namespace SaveTheLongDark
 
             if (CurrentState == null) 
                 BuildState();
+        }
+
+        public string GenerateItemInfo(int index = -1)
+        {
+            if (index == -1)
+                index = CurrentState.CurrentIndex;
+            if (index == 0)
+                return CurrentState.Items.Count == 1 ? $"\r       (empty)\n" : "";
+
+            var item = CurrentState.Items[index];
+            var info = $"\r    *  {item.CreationTime:HH:mm}  {item.Index}{item.Branch}\n";
+            if (item.Note != null)
+                info += $"\r    └─ {item.Note}\n";
+            return info;
         }
         
         public string Save(string src, DateTime when)
@@ -83,7 +98,7 @@ namespace SaveTheLongDark
             currentItem.Children.Add(newItem.Index);
             SerializeState();
 
-            return $"\r    *  {newItem.CreationTime:HH:mm}  {newItem.Index}{newItem.Branch}\n";
+            return GenerateItemInfo(newItem.Index);
         }
 
         public string Restore(int index, string dst)
@@ -105,7 +120,7 @@ namespace SaveTheLongDark
             item.Note = note;
             SerializeState();
             
-            return $"\r    *  {item.CreationTime:HH:mm}  {item.Index}{item.Branch}\n    └─ {item.Note}\n";
+            return GenerateItemInfo();
         }
 
         public string List()
@@ -113,15 +128,35 @@ namespace SaveTheLongDark
             var list = new StringBuilder();
             foreach (var kv in CurrentState.Items)
             {
-                if (kv.Key == 0)
-                    continue;
-
-                list.AppendFormat("\r    *  {2:HH:mm}  {0}{1}\n", kv.Key, kv.Value.Branch, kv.Value.CreationTime);
-                if (kv.Value.Note != null)
-                    list.AppendFormat("\r    └─ {0}\n", kv.Value.Note);
+                list.Append(GenerateItemInfo(kv.Key));
             }
 
             return list.ToString();
+        }
+
+        public string ClearOldSave(int keepCount)
+        {
+            var deleted = 0;
+            foreach (var kv in CurrentState.Items.Reverse())
+            {
+                if (keepCount > 0 || kv.Key >= CurrentState.CurrentIndex)
+                {
+                    keepCount--;
+                }
+                else if (kv.Key == 0)
+                {
+                    kv.Value.Children = new HashSet<int>();
+                }
+                else
+                {
+                    File.Delete(kv.Value.FilePath);
+                    CurrentState.Items.Remove(kv.Key);
+                    deleted++;
+                }
+            }
+            SerializeState();
+
+            return $"deleted: {deleted}, remaining: {CurrentState.Items.Count - 1}\n";
         }
 
         public void SerializeState()
