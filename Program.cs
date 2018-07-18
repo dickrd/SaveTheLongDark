@@ -31,7 +31,7 @@ namespace SaveTheLongDark
                 }
                 catch (Exception e)
                 {
-                    Console.Write("\r{0:HHmm} cannot be saved: {1}\n", _lastChanged, e.Message);
+                    Console.Write("\r{0:HHmm} cannot be saved: {1}\n", _lastChanged, e.Message.ToLower());
                 }
                 Console.Write("--> ");
             };
@@ -44,11 +44,19 @@ namespace SaveTheLongDark
                 {
                     return;
                 }
-                else if (line.Trim() == "list")
+
+                line = line.Trim();
+                if (line == "list")
                 {
                     Console.Write(saver.List());
                 }
-                else if (line.Trim().StartsWith("restore "))
+                else if (line.StartsWith("milestone "))
+                {
+                    var note = line.Substring("milestone ".Length);
+                    var message = saver.Milestone(note);
+                    Console.Write(message);
+                }
+                else if (line.StartsWith("restore "))
                 {
                     try
                     {
@@ -59,7 +67,7 @@ namespace SaveTheLongDark
                     }
                     catch (Exception e)
                     {
-                        Console.Write("\r{0} failed: {1}\n", line, e.Message);
+                        Console.Write("\r{0} failed: {1}\n", line, e.Message.ToLower());
                     }
                 }
                 else
