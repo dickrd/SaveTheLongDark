@@ -83,7 +83,7 @@ namespace SaveTheLongDark
                 CurrentState.NextBranch = newBranch.ToString();
             }
             
-            var newItem = new Item()
+            var newItem = new Item
             {
                 Index = CurrentState.Items.Last().Key + 1,
                 Branch = branch,
@@ -134,6 +134,105 @@ namespace SaveTheLongDark
             return list.ToString();
         }
 
+        public string Tree()
+        {
+            var tree = new SortedDictionary<int, Dictionary<string, string>>();
+            var columns = new List<string>();
+            var nextLineFor = new Dictionary<string, int>();
+            var widthFor = new Dictionary<string, int>();
+            foreach (var kv in CurrentState.Items)
+            {
+                if (kv.Key == 0)
+                    continue;
+
+                var id = kv.Value.Index;
+                var branch = kv.Value.Branch;
+                var indicator = "*";
+                if (id == CurrentState.CurrentIndex)
+                    indicator = "@";
+                var content = $"├ {indicator} {id}{branch} ";
+
+                if (nextLineFor.ContainsKey(kv.Value.Branch))
+                {
+                    tree[nextLineFor[branch]].Add(branch, content);
+                    if (!tree.ContainsKey(nextLineFor[branch] + 1))
+                        tree.Add(nextLineFor[branch] + 1, new Dictionary<string, string>());
+
+                    widthFor[branch] = widthFor[branch] > content.Length ? widthFor[branch] : content.Length;
+                    nextLineFor[branch]++;
+                }
+                else
+                {
+                    tree.Add(0, new Dictionary<string, string>());
+                    tree[0].Add(branch, content);
+                    tree.Add(1, new Dictionary<string, string>());
+                    
+                    columns.Insert(0, branch);
+                    widthFor.Add(branch, content.Length);
+                    nextLineFor.Add(branch, 1);
+                }
+                
+                foreach (var child in kv.Value.Children)
+                {
+                    var childBranch = CurrentState.Items[child].Branch;
+                    if (nextLineFor.ContainsKey(childBranch)) 
+                        continue;
+                    
+                    columns.Insert(columns.IndexOf(branch) + 1, childBranch);
+                    widthFor.Add(childBranch, 6);
+                    nextLineFor.Add(childBranch, nextLineFor[branch]);
+                    tree[nextLineFor[branch] - 1].Add(childBranch, "┐");
+                }
+            }
+
+            var result = new StringBuilder();
+            foreach (var kv in tree)
+            {
+                var line = "    ";
+                var above = "    ";
+                foreach (var branch in columns)
+                {   
+                    if (kv.Value.ContainsKey(branch))
+                    {
+                        if (kv.Value[branch] != "┐")
+                            above += "│".PadRight(widthFor[branch]);
+                        else
+                            above += " ".PadRight(widthFor[branch]);
+                        line += kv.Value[branch].PadRight(widthFor[branch]);
+                    }
+                    else
+                    {
+                        var fill = false;
+                        foreach (var _ in columns.GetRange(columns.IndexOf(branch), columns.Count - columns.IndexOf(branch)))
+                        {
+                            if (!kv.Value.ContainsKey(_)) 
+                                continue;
+                            if (kv.Value[_] == "┐")
+                                fill = true;
+                            break;
+                        }
+                        if (fill)
+                        {
+                            above += " ".PadRight(widthFor[branch]);
+                            line += "─".PadRight(widthFor[branch], '─');
+                        }
+                        else
+                        {
+                            above += " ".PadRight(widthFor[branch]);
+                            line += " ".PadRight(widthFor[branch]);
+                        }
+                    }
+                }
+
+                if (above.Trim() != "")
+                    result.Append(above + "\n");
+                if (line.Trim() != "")
+                    result.Append(line + "\n");
+            }
+
+            return result.ToString();
+        }
+
         public string ClearOldSave(int keepCount)
         {
             var deleted = 0;
@@ -159,7 +258,7 @@ namespace SaveTheLongDark
             return $"deleted: {deleted}, remaining: {CurrentState.Items.Count - 1}\n";
         }
 
-        public void SerializeState()
+        private void SerializeState()
         {
             var stream = File.OpenWrite(string.Format(OutputPath, "state"));
             var formater = new BinaryFormatter();
@@ -171,13 +270,13 @@ namespace SaveTheLongDark
 
         private void BuildState()
         {
-            CurrentState = new State()
+            CurrentState = new State
             {
                 CurrentIndex = 0,
                 NextBranch = "b",
                 Items = new SortedDictionary<int, Item>()
             };
-            CurrentState.Items.Add(0, new Item()
+            CurrentState.Items.Add(0, new Item
             {
                 Index = 0,
                 Branch = "a",
@@ -195,7 +294,7 @@ namespace SaveTheLongDark
                     continue;
                 
                 var currentItem = CurrentState.Items[CurrentState.CurrentIndex];
-                var newItem = new Item()
+                var newItem = new Item
                 {
                     Index = currentItem.Index + 1,
                     Branch = currentItem.Branch,

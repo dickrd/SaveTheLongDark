@@ -19,17 +19,6 @@ namespace SaveTheLongDark
             {
                 Console.Write("\r==> loading state...\n");
                 saver = new Saver(args[1]);
-                Console.CancelKeyPress += (sender, eventArgs) =>
-                {
-                    try
-                    {
-                        saver.SerializeState();
-                    }
-                    catch (Exception e)
-                    {
-                        Console.Write("\rstate not saved: {0}\n", e.Message.ToLower());
-                    }
-                };
                 var watcher = new FileSystemWatcher
                 {
                     Path = args[0],
@@ -68,59 +57,69 @@ namespace SaveTheLongDark
                 Console.Write("--> ");
                 var line = Console.ReadLine();
                 if (line == null || line.Trim() == "exit")
-                {
-                    saver.SerializeState();
                     return;
-                }
 
                 line = line.Trim();
-                if (line == "list")
+                switch (line)
                 {
-                    Console.Write(saver.List());
-                }
-                else if (line.StartsWith("milestone "))
-                {
-                    var note = line.Substring("milestone ".Length);
-                    var message = saver.Milestone(note);
-                    Console.Write(message);
-                }
-                else if (line.StartsWith("keep "))
-                {
-                    try
-                    {
-                        var keep = int.Parse(line.Substring("keep ".Length));
-                        var message = saver.ClearOldSave(keep);
-                        Console.Write(message);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.Write("\r{0} failed: {1}\n", line, e.Message.ToLower());
-                    }
-                }
-                else if (line.StartsWith("restore "))
-                {
-                    try
-                    {
-                        var index = int.Parse(line.Substring("restore ".Length));
-                        _lastChanged = DateTime.Now;
-                        var message = saver.Restore(index, Path.Combine(args[0], args[1]));
-                        Console.Write(message);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.Write("\r{0} failed: {1}\n", line, e.Message.ToLower());
-                    }
-                }
-                else if (line == "help")
-                {
-                    Console.Write("\r    list\t\tlist all saves\n" +
-                                  "    milestone <event>\tadd milestone to a save\n" +
-                                  "    keep <count>\tkeep only latest <count> saves\n" +
-                                  "    restore <id>\trestore <id> as current save\n");
-                }
-                else
-                {
-                    Console.Write("\r{0} is not regconised. try: help\n", line);
+                    case "list":
+                        Console.Write(saver.List());
+                        break;
+                    case "tree":
+                        Console.Write(saver.Tree());
+                        break;
+                    case "clear":
+                        Console.Clear();
+                        break;
+                    default:
+                        if (line.StartsWith("milestone "))
+                        {
+                            var note = line.Substring("milestone ".Length);
+                            var message = saver.Milestone(note);
+                            Console.Write(message);
+                        }
+                        else if (line.StartsWith("keep "))
+                        {
+                            try
+                            {
+                                var keep = int.Parse(line.Substring("keep ".Length));
+                                var message = saver.ClearOldSave(keep);
+                                Console.Write(message);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.Write("\r{0} failed: {1}\n", line, e.Message.ToLower());
+                            }
+                        }
+                        else if (line.StartsWith("restore "))
+                        {
+                            try
+                            {
+                                var index = int.Parse(line.Substring("restore ".Length));
+                                _lastChanged = DateTime.Now;
+                                var message = saver.Restore(index, Path.Combine(args[0], args[1]));
+                                Console.Write(message);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.Write("\r{0} failed: {1}\n", line, e.Message.ToLower());
+                            }
+                        }
+                        else if (line == "help")
+                        {
+                            Console.Write("\r    list\t\tlist all saves\n" +
+                                          "    tree\t\tprint tree structure of saves\n" +
+                                          "    clear\t\tclear console output\n" +
+                                          "    milestone <event>\tadd milestone to a save\n" +
+                                          "    keep <count>\tkeep only latest <count> saves\n" +
+                                          "    restore <id>\trestore <id> as current save\n");
+                        }
+                        else
+                        {
+                            Console.Write("\r{0} is not regconised. try: help\n", line);
+                        }
+
+                        break;
                 }
             }
         }
